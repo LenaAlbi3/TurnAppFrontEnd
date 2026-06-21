@@ -1,5 +1,3 @@
-<<<<<<< HEAD
-
 # TurnApp Frontend
 
 Frontend de TurnApp desarrollado con Vite.
@@ -50,9 +48,3 @@ pnpm run dev
 ## Licencia
 
 Proyecto privado.
-
-=======
-
-# TurnAppFront
-
-> > > > > > > da56782a30037c0a00411fd14a5b043cf647b9e6
