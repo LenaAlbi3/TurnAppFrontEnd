@@ -15,8 +15,9 @@ const Navbar = () => {
           </div>
           <ul tabIndex={0} className="menu menu-sm dropdown-content bg-base-100 rounded-box z-50 mt-3 w-52 p-2 shadow-lg border border-gray-100">
             <li><Link href="/">Home</Link></li>
-            <li><Link href="/doctors">Doctors</Link></li>
-            <li><Link href="/about">About</Link></li>
+            <li><Link href="/doctors">Doctores</Link></li>
+            <li><Link href="/about">Sobre Nosotros</Link></li>
+          <li><Link href="/contact">Contactanos</Link></li>
           </ul>
         </div>
         <Link href="/" className="btn btn-ghost text-xl font-bold">Turn App</Link>
@@ -24,15 +25,16 @@ const Navbar = () => {
       <div className="navbar-center hidden lg:flex">
         <ul className="menu menu-horizontal px-1 gap-2 font-medium">
           <li><Link href="/">Home</Link></li>
-          <li><Link href="/doctors">Doctors</Link></li>
-          <li><Link href="/about">About</Link></li>
+          <li><Link href="/doctors">Doctores</Link></li>
+          <li><Link href="/about">Sobre Nosotros</Link></li>
+          <li><Link href="/contact">Contactanos</Link></li>
         </ul>
       </div>
       <div className="navbar-end">
         {isLoggedIn ? (
-          <Link href="/profile" className="btn btn-primary rounded-full px-5">Profile</Link>
+          <Link href="/profile" className="btn btn-primary rounded-full px-5">Perfil</Link>
         ) : (
-          <Link href="/login" className="btn btn-outline rounded-full px-5">Log in</Link>
+          <Link href="/login" className="btn btn-outline rounded-full px-5">Inicia Sesion</Link>
         )}
       </div>
 
