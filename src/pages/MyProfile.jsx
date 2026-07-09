@@ -1,120 +1,45 @@
-import React, { useState, useEffect } from 'react';
-import TurnosPaciente from '../components/TurnosPaciente';
-import TurnosDoctor from '../components/TurnosDoctor';
+import React, { useContext } from 'react';
+import { Link } from 'wouter';
+import { AppContext } from '../context/AppContext';
 
 const MyProfile = () => {
+  const { usuarioLogueado } = useContext(AppContext);
 
-  const [user, setUser] = useState({ nombre: '', apellido: '', email: '', rol: '' });
-  const [isEditing, setIsEditing] = useState(false);
-  const [isLoading, setIsLoading] = useState(true);
-  const [error, setError] = useState(null);
+  if (!usuarioLogueado) {
+    return <div className="p-6 text-center">Debes iniciar sesión para ver tu perfil.</div>;
+  }
 
-  const API_URL = 'https://localhost:5001/api/usuarios/perfil';
-
-  useEffect(() => {
-    const fetchProfile = async () => {
-      try {
-        const token = localStorage.getItem('token'); 
-        
-        const response = await fetch(API_URL, {
-          method: 'GET',
-          headers: {
-            'Authorization': `Bearer ${token}`,
-            'Content-Type': 'application/json'
-          }
-        });
-
-        if (!response.ok) throw new Error('Error al cargar el perfil');
-        
-        const data = await response.json();
-        setUser(data);
-      } catch (err) {
-        setError(err.message);
-      } finally {
-        setIsLoading(false);
-      }
-    };
-
-    fetchProfile();
-  }, []);
-
-  const handleInputChange = (e) => {
-    const { name, value } = e.target;
-    setUser({ ...user, [name]: value });
-  };
-
-  const handleSave = async (e) => {
-    e.preventDefault();
-    try {
-      const token = localStorage.getItem('token');
-      
-      const response = await fetch(API_URL, {
-        method: 'POST', 
-        headers: {
-          'Authorization': `Bearer ${token}`,
-          'Content-Type': 'application/json'
-        },
-        body: JSON.stringify(user)
-      });
-
-      if (!response.ok) throw new Error('Error al guardar los cambios');
-      
-      setIsEditing(false); 
-      alert('Perfil actualizado con éxito');
-    } catch (err) {
-      alert(err.message);
-    }
-  };
-
-  const renderizarTurnosPorRol = () => {
-    
-    if (user.rol?.toLowerCase() === 'doctor' || user.rol?.toLowerCase() === 'profesional') {
-      return <TurnosDoctor />;
-    } 
-    
-    return <TurnosPaciente />;
-  };
-
-  if (isLoading) return <div>Cargando perfil...</div>;
-  if (error) return <div>Error: {error}</div>;
+  const esProfesional = usuarioLogueado.roles?.includes('Prof');
 
   return (
-    <div className="profile-container">
-      <h2>Mi Perfil</h2>
+    <div className="container mx-auto p-6 max-w-2xl">
+      <h2 className="text-3xl font-bold mb-6 text-gray-800">Mi Perfil</h2>
       
-      {isEditing ? (
-        <form onSubmit={handleSave}>
-          <div>
-            <label>Nombre:</label>
-            <input type="text" name="nombre" value={user.nombre} onChange={handleInputChange} required />
-          </div>
-          <div>
-            <label>Apellido:</label>
-            <input type="text" name="apellido" value={user.apellido} onChange={handleInputChange} required />
-          </div>
-          <div>
-            <label>Email:</label>
-            <input type="email" name="email" value={user.email} onChange={handleInputChange} disabled />
-            <small> El email no se puede cambiar.</small>
-          </div>
-          <button type="submit">Guardar Cambios</button>
-          <button type="button" onClick={() => setIsEditing(false)}>Cancelar</button>
-        </form>
-      ) : (
-        <div className="datos-usuario">
-          <p><strong>Nombre:</strong> {user.nombre} {user.apellido}</p>
-          <p><strong>Email:</strong> {user.email}</p>
-          <p><strong>Rol:</strong> {user.rol || 'Paciente'}</p>
-          <button onClick={() => setIsEditing(true)}>Editar Perfil</button>
+      <div className="bg-white p-6 rounded-lg shadow-sm border border-gray-100 mb-8">
+        <div className="space-y-3">
+          <p><strong className="text-gray-700">DNI:</strong> {usuarioLogueado.dni}</p>
+          <p><strong className="text-gray-700">Email:</strong> {usuarioLogueado.email}</p>
+          <p><strong className="text-gray-700">Rol:</strong> {usuarioLogueado.roles?.join(', ') || 'Sin asignar'}</p>
         </div>
-      )}
-        <hr />
-        <div className="seccion-turnos">
-          {renderizarTurnosPorRol()}
-        </div>
-      
+      </div>
+
+      <div className="flex flex-col gap-4">
+        {esProfesional ? (
+          <Link href="/turnosdoctor">
+            <button className="w-full bg-sky-600 text-white py-3 rounded-lg font-semibold hover:bg-sky-700 transition shadow-md">
+              Ver Mi Agenda Profesional
+            </button>
+          </Link>
+        ) : (
+          <Link href="/turnospaciente">
+            <button className="w-full bg-emerald-600 text-white py-3 rounded-lg font-semibold hover:bg-emerald-700 transition shadow-md">
+              Ver Mis Turnos Agendados
+            </button>
+          </Link>
+        )}
+      </div>
     </div>
   );
 };
 
-export default MyProfile
+export default MyProfile;

@@ -1,25 +1,36 @@
 import { Route, Switch, Redirect } from "wouter";
 import Navbar from './components/Navbar';
 import Home from './pages/Home';
-import Doctors from './pages/Doctors';
+import Doctores from './pages/Doctores';
+import Turno from './pages/Turno'; 
 import Login from './pages/Login';
 import Register from './pages/Register';
 import Contact from "./pages/Contact";
 import MyProfile from "./pages/MyProfile";
+import TurnosDoctor from './pages/TurnosDoctor';     
+import TurnosPaciente from './pages/TurnosPaciente'; 
 import Page404 from "./pages/page-404";
 import Footer from "./components/Footer";
 
-import { useAuthStore } from "./store/authStore"; 
-// import { evaluateRoles } from "./utils/evaluate-roles"; // Descomenta si usas roles
-
+const AdminPanel = lazy(() => import("./pages/AdminPanel"));
+// Wrapper para proteger rutas privadas
 const RutaProtegida = ({ children }) => {
   const isAuthenticated = localStorage.getItem('token') !== null;
-  
+  return isAuthenticated ? children : <Redirect to="/login" replace />;
+};
+
+const RutaAdmin = ({ children }) => {
+  const isAuthenticated = useAuthStore((state) => state.isAuthenticated);
+  const hasRole = useAuthStore((state) => state.hasRole);
+
   if (!isAuthenticated) {
-    // Si no está logueado, lo mandamos a la página de login
     return <Redirect to="/login" replace />;
   }
-  
+
+  if (!hasRole("Admin")) {
+    return <Redirect to="/" replace />;
+  }
+
   return children;
 };
 
@@ -29,42 +40,45 @@ export default function AppRouter() {
         <Navbar />
         
         <Switch>
-            <Route path="/">
-                <main className="container-fluid">
-                    <Home />
-                </main>
-            </Route>
+            <Route path="/" component={Home} />
             <Route path="/login" component={Login} />
             <Route path="/register" component={Register} />
-            
-            <Route path="/doctors" component={Doctors} />
-            <Route path="/doctors/:speciality" component={Doctors} />
+            <Route path="/doctores" component={Doctores} />
+            <Route path="/turno/:docId" component={Turno} />
             <Route path="/contact" component={Contact} />
 
-            
             {/* --- RUTAS PRIVADAS --- */}
-            {/* Solo usuarios autenticados pueden entrar aquí */}
             <Route path="/profile">
               <RutaProtegida>
                 <MyProfile />
               </RutaProtegida>
             </Route>
 
+            <Route path="/admin">
+              <RutaAdmin>
+                <Suspense fallback={<div>Cargando panel de administración...</div>}>
+                  <AdminPanel />
+                </Suspense>
+              </RutaAdmin>
+            </Route>
 
-            {/* Ejemplo si quisieras una ruta solo para Administradores: */}
-            {/* 
-            <PrivateRoute path="/dashboard" allowedRoles={["Admin", "Mod"]}>
-                <Dashboard />
-            </PrivateRoute> 
-            */}
+            <Route path="/agenda-doctor">
+              <RutaProtegida>
+                <TurnosDoctor />
+              </RutaProtegida>
+            </Route>
+
+            <Route path="/mis-turnos-paciente">
+              <RutaProtegida>
+                <TurnosPaciente />
+              </RutaProtegida>
+            </Route>
             
             {/* --- RUTA 404 (Siempre al final) --- */}
-            <Route>
-                <Page404 />
-            </Route>
-      </Switch>
-      
-      <Footer />
+            <Route component={Page404} />
+        </Switch>
+        
+        <Footer />
     </div>
   );
 }

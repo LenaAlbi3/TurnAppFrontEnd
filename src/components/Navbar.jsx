@@ -14,7 +14,7 @@ const Navbar = () => {
             </svg>
           </div>
           <ul tabIndex={0} className="menu menu-sm dropdown-content bg-base-100 rounded-box z-50 mt-3 w-52 p-2 shadow-lg border border-gray-100">
-            <li><Link href="/">Home</Link></li>
+            <li><Link href="/">Inicio</Link></li>
             <li><Link href="/doctors">Doctores</Link></li>
             <li><Link href="/about">Sobre Nosotros</Link></li>
           <li><Link href="/contact">Contactanos</Link></li>
@@ -24,7 +24,7 @@ const Navbar = () => {
       </div>
       <div className="navbar-center hidden lg:flex">
         <ul className="menu menu-horizontal px-1 gap-2 font-medium">
-          <li><Link href="/">Home</Link></li>
+          <li><Link href="/">Inicio</Link></li>
           <li><Link href="/doctors">Doctores</Link></li>
           <li><Link href="/about">Sobre Nosotros</Link></li>
           <li><Link href="/contact">Contactanos</Link></li>
@@ -37,7 +37,6 @@ const Navbar = () => {
           <Link href="/login" className="btn btn-outline rounded-full px-5">Inicia Sesion</Link>
         )}
       </div>
-
     </div>
   )
 }

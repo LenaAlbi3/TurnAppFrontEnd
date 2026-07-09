@@ -18,7 +18,7 @@ export default function Login() {
     e.preventDefault();
     try {
       console.log("Intentando iniciar sesión con:", loginData);
-      // const response = await axios.post("http://link/api/login", loginData);
+      const response = await axios.post("http://link/api/login", loginData);
     } catch (error) {
       console.error("Error al iniciar sesión:", error);
     }
