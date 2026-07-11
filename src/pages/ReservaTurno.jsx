@@ -1,8 +1,7 @@
 import { useState, useEffect } from "react";
 import { useLocation } from "wouter";
-import api from "../services/api"; // Tu instancia centralizada de Axios
-import { useContext } from "react";
-import { AppContext } from "../context/AppContext"; // Importamos el contexto
+import api from "../services/api";
+import { useAuthStore } from "../store/authStore";
 
 export default function ReservarTurno() {
   const [datosReserva, setDatosReserva] = useState(null);
@@ -10,59 +9,61 @@ export default function ReservarTurno() {
   const [isReprogramando, setIsReprogramando] = useState(false);
   const [feedback, setFeedback] = useState({ message: "", type: "" });
 
-  // Usamos el token del contexto que configuramos anteriormente
-  const { token } = useContext(AppContext);
+  const { token, user } = useAuthStore();
   const [, setLocation] = useLocation();
 
   useEffect(() => {
-    // 1. Verificar si el usuario está autenticado mediante el token
     if (!token) {
       setLocation("/login");
       return;
     }
 
-    // 2. Verificar si estamos reprogramando
     const turnoIdAReemplazar = sessionStorage.getItem("turnoAReprogramar");
     if (turnoIdAReemplazar) setIsReprogramando(true);
 
-    // 3. Cargar datos de la reserva pendiente
     const reservaGuardada = sessionStorage.getItem("reserva_pendiente");
     if (!reservaGuardada) {
       setLocation("/");
       return;
     }
+    
     setDatosReserva(JSON.parse(reservaGuardada));
   }, [token, setLocation]);
 
   const handleConfirmarReserva = async () => {
-    if (!datosReserva) return;
+    if (!datosReserva || !user) return;
+
+    if (datosReserva.estado && datosReserva.estado !== "D") {
+      setFeedback({ message: "Este turno ya no se encuentra disponible.", type: "error" });
+      return;
+    }
 
     setIsLoading(true);
     setFeedback({ message: "", type: "" });
 
     try {
-      // Payload corregido para coincidir con tu lógica de backend
-      const payload = {
-        profesionalId: datosReserva.profesional.id,
-        fechaHora: datosReserva.fechaHora,
-        estadoTurno: "Asignado",
-        turnoACancelarId: sessionStorage.getItem("turnoAReprogramar") || null
-      };
+      const turnoId = datosReserva.id;
+      const pacienteId = user.id;
 
-      // Usamos la instancia 'api' configurada en lugar de axios directo
-      await api.post("/turno", payload);
+      if (!turnoId) {
+        throw new Error("ID de turno no encontrado.");
+      }
 
-      setFeedback({ message: "¡Turno procesado con éxito!", type: "success" });
+      await api.put(`/turnos/${turnoId}/paciente/${pacienteId}`);
+
+      setFeedback({ message: "¡Turno reservado con éxito!", type: "success" });
       
-      // Limpieza de estados
       sessionStorage.removeItem("reserva_pendiente");
       sessionStorage.removeItem("turnoAReprogramar");
       
       setTimeout(() => setLocation("/mis-turnos-paciente"), 2000);
     } catch (error) {
-      console.error("Error al consolidar:", error);
-      const msg = error.response?.data?.message || "Hubo un error al guardar el turno.";
-      setFeedback({ message: msg, type: "error" });
+      console.error("Error al asignar el turno:", error.response?.data || error);
+
+      const errorMsg = error.response?.data?.message || 
+                       error.response?.data || 
+                       "Error al asignar el turno. Asegúrate de tener permisos.";
+      setFeedback({ message: errorMsg, type: "error" });
     } finally {
       setIsLoading(false);
     }

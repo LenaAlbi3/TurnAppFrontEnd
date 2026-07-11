@@ -31,7 +31,8 @@ const Turno = () => {
       if (!docInfo) return;
       try {
         setLoading(true);
-        const respuesta = await api.get(`/turno?profesionalId=${docInfo.id}`);
+        // Ruta corregida según solicitud
+        const respuesta = await api.get(`/turnos/profesional/disponibles/${docInfo.id}`);
         setTurnosOcupados(respuesta.data || []);
       } catch (error) {
         console.error("Error al traer turnos del backend:", error);
@@ -103,32 +104,43 @@ const Turno = () => {
     }
   }, [docInfo, turnosOcupados, loading]);
 
-  const continuarAConfirmacion = () => {
-    if (!token) {
-      setMensaje({ tipo: 'error', texto: 'Debes iniciar sesión para agendar un turno.' });
-      return;
-    }
+const continuarAConfirmacion = () => {
+  if (!token) {
+    setMensaje({ tipo: 'error', texto: 'Debes iniciar sesión para agendar un turno.' });
+    return;
+  }
 
-    if (!slotTime) {
-      setMensaje({ tipo: 'error', texto: 'Por favor, selecciona un horario disponible.' });
-      return;
-    }
+  if (!slotTime) {
+    setMensaje({ tipo: 'error', texto: 'Por favor, selecciona un horario disponible.' });
+    return;
+  }
 
-    const slotSeleccionado = docSlots[slotIndex].find(s => s.time === slotTime);
-    
-    if (!slotSeleccionado || !slotSeleccionado.disponible) {
-      setMensaje({ tipo: 'error', texto: 'El horario seleccionado ya no está disponible.' });
-      return;
-    }
+  const slotSeleccionado = docSlots[slotIndex]?.find(s => s.time === slotTime);
+  
+  if (!slotSeleccionado || !slotSeleccionado.disponible) {
+    setMensaje({ tipo: 'error', texto: 'El horario seleccionado ya no está disponible.' });
+    return;
+  }
 
-    sessionStorage.setItem('reserva_pendiente', JSON.stringify({
-      profesional: docInfo,
-      fechaHora: slotSeleccionado.datetime.toISOString(),
-      horaTexto: slotTime
-    }));
+  const turnoEncontrado = turnosOcupados.find(t => {
+    const fechaTurno = new Date(t.fechaHora).getTime();
+    const fechaSlot = slotSeleccionado.datetime.getTime();
+    return fechaTurno === fechaSlot;
+  });
 
-    setLocation('/reservar-turno');
-  };
+  if (!turnoEncontrado) {
+    setMensaje({ tipo: 'error', texto: 'Error: No se encontró el ID del turno en la base de datos.' });
+    return;
+  }
+  sessionStorage.setItem('reserva_pendiente', JSON.stringify({
+    id: turnoEncontrado.id, 
+    profesional: docInfo,
+    fechaHora: slotSeleccionado.datetime.toISOString(),
+    horaTexto: slotTime
+  }));
+
+  setLocation('/reservar-turno');
+}; 
 
   if (loading) {
     return (
@@ -142,10 +154,6 @@ const Turno = () => {
   return docInfo && (
     <div className="container mx-auto p-4 max-w-5xl">
       <div className='flex flex-col sm:flex-row gap-4 bg-white p-6 rounded-lg shadow-sm border border-gray-100'>
-        <div>
-          <img className='bg-sky-50 w-full sm:max-w-72 rounded-lg object-cover' src={docInfo.imagen || docInfo.image || assets.doc_placeholder} alt={docInfo.nombre} />
-        </div>
-
         <div className='flex-1 rounded-lg p-2 bg-white mt-0'>
           <p className='flex items-center gap-2 text-2xl font-semibold text-gray-900'>
             {docInfo.nombre} {docInfo.apellido}
@@ -160,7 +168,7 @@ const Turno = () => {
           </div>
           <div>
             <p className='flex items-center gap-1 text-sm font-semibold text-gray-900 mt-4'>
-              Sobre el profesional <img className="w-3.5" src={assets.info_icon} alt="" />
+              Sobre el profesional
             </p>
             <p className='text-sm text-gray-600 max-w-[700px] mt-1 leading-relaxed'>
               {docInfo.biografia || docInfo.about || "Profesional de la salud comprometido con la atención integral de sus pacientes."}
