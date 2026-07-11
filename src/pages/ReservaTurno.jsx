@@ -1,7 +1,8 @@
 import { useState, useEffect } from "react";
-import { useLocation, useRoute } from "wouter";
-import axios from "axios";
-import { useAuthStore } from "../store/authStore";
+import { useLocation } from "wouter";
+import api from "../services/api"; // Tu instancia centralizada de Axios
+import { useContext } from "react";
+import { AppContext } from "../context/AppContext"; // Importamos el contexto
 
 export default function ReservarTurno() {
   const [datosReserva, setDatosReserva] = useState(null);
@@ -9,27 +10,29 @@ export default function ReservarTurno() {
   const [isReprogramando, setIsReprogramando] = useState(false);
   const [feedback, setFeedback] = useState({ message: "", type: "" });
 
-  const { isAuthenticated, token } = useAuthStore();
+  // Usamos el token del contexto que configuramos anteriormente
+  const { token } = useContext(AppContext);
   const [, setLocation] = useLocation();
 
   useEffect(() => {
-    if (!isAuthenticated) {
-      setLocation("/");
+    // 1. Verificar si el usuario está autenticado mediante el token
+    if (!token) {
+      setLocation("/login");
       return;
     }
 
-    // 1. Verificar si estamos reprogramando
+    // 2. Verificar si estamos reprogramando
     const turnoIdAReemplazar = sessionStorage.getItem("turnoAReprogramar");
     if (turnoIdAReemplazar) setIsReprogramando(true);
 
-    // 2. Cargar datos de la reserva pendiente
+    // 3. Cargar datos de la reserva pendiente
     const reservaGuardada = sessionStorage.getItem("reserva_pendiente");
     if (!reservaGuardada) {
       setLocation("/");
       return;
     }
     setDatosReserva(JSON.parse(reservaGuardada));
-  }, [isAuthenticated, setLocation]);
+  }, [token, setLocation]);
 
   const handleConfirmarReserva = async () => {
     if (!datosReserva) return;
@@ -38,7 +41,7 @@ export default function ReservarTurno() {
     setFeedback({ message: "", type: "" });
 
     try {
-      // Si estamos reprogramando, incluimos el ID del anterior
+      // Payload corregido para coincidir con tu lógica de backend
       const payload = {
         profesionalId: datosReserva.profesional.id,
         fechaHora: datosReserva.fechaHora,
@@ -46,9 +49,8 @@ export default function ReservarTurno() {
         turnoACancelarId: sessionStorage.getItem("turnoAReprogramar") || null
       };
 
-      await axios.post("https://localhost:7298/api/turno", payload, {
-        headers: { Authorization: `Bearer ${token}` },
-      });
+      // Usamos la instancia 'api' configurada en lugar de axios directo
+      await api.post("/turno", payload);
 
       setFeedback({ message: "¡Turno procesado con éxito!", type: "success" });
       
@@ -66,7 +68,7 @@ export default function ReservarTurno() {
     }
   };
 
-  if (!isAuthenticated || !datosReserva) return null;
+  if (!token || !datosReserva) return null;
 
   const fechaFormateada = new Date(datosReserva.fechaHora).toLocaleDateString("es-AR", {
     weekday: "long", day: "numeric", month: "long"
@@ -74,7 +76,6 @@ export default function ReservarTurno() {
 
   return (
     <div className="min-h-screen bg-base-200 flex flex-col">
-      {/* Navbar que ya tenías */}
       <main className="grow flex items-center justify-center p-4">
         <div className="card w-full max-w-md bg-base-100 shadow-xl border border-base-300">
           <div className="card-body">
@@ -88,7 +89,6 @@ export default function ReservarTurno() {
                 : "Por favor, revisá los detalles de tu cita."}
             </p>
 
-            {/* Ficha Resumen (Tu diseño original) */}
             <div className="bg-base-200 p-4 rounded-xl space-y-3 mb-6">
               <div>
                 <span className="text-xs font-bold uppercase text-base-content/50">Profesional</span>
@@ -106,14 +106,12 @@ export default function ReservarTurno() {
               </div>
             </div>
 
-            {/* Feedback */}
             {feedback.message && (
               <div className={`p-3 rounded-lg text-center font-semibold text-sm mb-4 ${feedback.type === "success" ? "bg-success/20 text-success" : "bg-error/20 text-error"}`}>
                 {feedback.message}
               </div>
             )}
 
-            {/* Acciones */}
             <div className="card-actions flex flex-col gap-2">
               <button onClick={handleConfirmarReserva} className="btn btn-primary w-full text-lg" disabled={isLoading}>
                 {isLoading ? <span className="loading loading-spinner"></span> : "Confirmar Turno"}

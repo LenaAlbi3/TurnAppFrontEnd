@@ -1,5 +1,6 @@
-import { useState, useEffect } from 'react';
-import api from '../services/api'; 
+import { useState, useEffect, useContext } from 'react';
+import api from '../services/api';
+import { AppContext } from '../context/AppContext';
 
 const TurnosProfesional = () => {
   const [turnos, setTurnos] = useState([]);
@@ -7,8 +8,19 @@ const TurnosProfesional = () => {
   const [error, setError] = useState(null);
   const [actionLoading, setActionLoading] = useState(false);
   
+  // Obtenemos el token del contexto para asegurar la autenticación
+  const { token } = useContext(AppContext);
+  
   const fetchAgenda = async () => {
+    // Seguridad: No realizar la petición si no existe un token activo
+    if (!token) {
+      setError("Sesión expirada. Por favor, inicia sesión nuevamente.");
+      setLoading(false);
+      return;
+    }
+
     try {
+      setLoading(true);
       const response = await api.get('/turnos');
       setTurnos(Array.isArray(response.data) ? response.data : []);
     } catch (err) {
@@ -20,7 +32,7 @@ const TurnosProfesional = () => {
 
   useEffect(() => {
     fetchAgenda();
-  }, []);
+  }, [token]); // Se vuelve a ejecutar si el token cambia
 
   const handleEliminarTurno = async (id) => {
     if (!window.confirm("¿Seguro que deseas eliminar este turno?")) return;

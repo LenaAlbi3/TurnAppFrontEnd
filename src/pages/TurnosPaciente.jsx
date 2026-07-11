@@ -1,50 +1,59 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useContext } from 'react';
 import { useLocation } from 'wouter';
-import api from '../services/api';// Importamos la instancia configurada
+import api from '../services/api';
+import { AppContext } from '../context/AppContext';
 
-const TurnosPacientePage = () => {
+const TurnosPaciente = () => {
   const [turnos, setTurnos] = useState([]);
   const [loading, setLoading] = useState(true);
   const [, setLocation] = useLocation();
+  
+  // Obtenemos el token desde el contexto global
+  const { token } = useContext(AppContext);
 
   const fetchMisTurnos = async () => {
+    // Seguridad: Si no hay token, no realizamos la petición
+    if (!token) {
+      setLoading(false);
+      return;
+    }
+
     try {
+      setLoading(true);
       const response = await api.get('/turnos'); 
+      
       if (Array.isArray(response.data)) {
         setTurnos(response.data);
-    } else if (response.data && typeof response.data === 'object') {
-        // A veces el backend devuelve { "turnos": [...] }
-        // Ajusta "turnos" según el nombre de la propiedad en tu JSON de respuesta
+      } else if (response.data && typeof response.data === 'object') {
         setTurnos(response.data.turnos || []); 
-    } else {
+      } else {
         setTurnos([]);
+      }
+    } catch (err) {
+      console.error("Error al cargar turnos:", err);
+      setTurnos([]);
+    } finally {
+      setLoading(false);
     }
-  } catch (err) {
-    console.error("Error al cargar turnos:", err);
-    setTurnos([]); // Por seguridad si falla
-  } finally {
-    setLoading(false);
-  }
-};
+  };
 
   useEffect(() => { 
     fetchMisTurnos(); 
-  }, []);
+  }, [token]); // Dependencia del token para recargar si cambia
 
   const handleCancelar = async (id) => {
     if (!window.confirm("¿Seguro que deseas cancelar este turno?")) return;
     
     try {
-      // Usamos la instancia api para la petición DELETE
       await api.delete(`/turnos/${id}`);
       setTurnos(prev => prev.filter(t => t.id !== id));
     } catch (err) { 
-      alert("Error al cancelar."); 
+      alert("Error al cancelar el turno."); 
     }
   };
 
   const handleReprogramar = (turno) => {
-    localStorage.setItem("turnoAReprogramar", turno.id);
+    sessionStorage.setItem("turnoAReprogramar", turno.id);
     setLocation(`/turno/${turno.profesionalId}`); 
   };
 
@@ -75,11 +84,15 @@ const TurnosPacientePage = () => {
                     <button 
                       onClick={() => handleCancelar(turno.id)} 
                       className="btn btn-sm btn-outline btn-error"
-                    >Cancelar</button>
+                    >
+                      Cancelar
+                    </button>
                     <button 
                       onClick={() => handleReprogramar(turno)} 
                       className="btn btn-sm btn-primary"
-                    >Reprogramar</button>
+                    >
+                      Reprogramar
+                    </button>
                   </td>
                 </tr>
               ))
@@ -97,4 +110,4 @@ const TurnosPacientePage = () => {
   );
 };
 
-export default TurnosPacientePage;
+export default TurnosPaciente;
