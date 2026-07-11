@@ -7,6 +7,9 @@ const AppContextProvider = (props) => {
   const [profesionales, setProfesionales] = useState([]);
   const [especialidades, setEspecialidades] = useState([]);
   const [loadingGlobal, setLoadingGlobal] = useState(true);
+  
+  // Agregamos estado para el token de sesión
+  const [token, setToken] = useState(localStorage.getItem("token") || "");
 
   useEffect(() => {
     const cargarDatosEstructura = async () => {
@@ -31,12 +34,16 @@ const AppContextProvider = (props) => {
     return esp ? esp.nombre : "General";
   };
 
+  // El objeto value ahora incluye lo necesario para turnos
   const value = {
+    doctors: profesionales, // Mapeamos profesionales a 'doctors' para coincidir con tu Turno.jsx
     profesionales,
     setProfesionales,
     especialidades,
     obtenerNombreEspecialidad,
-    loadingGlobal
+    loadingGlobal,
+    token,
+    setToken
   };
 
   return (

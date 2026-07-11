@@ -14,6 +14,7 @@ import RegistroPaciente from "./pages/registerPatient";
 import Login from './pages/Login';
 import MyProfile from "./pages/MyProfile";
 import Turno from './pages/Turno'; 
+import ReservarTurno from "./pages/ReservaTurno";
 import TurnosDoctor from './pages/TurnosDoctor';     
 import TurnosPaciente from './pages/TurnosPaciente'; 
 import Page404 from "./pages/page-404";
@@ -58,6 +59,9 @@ export default function AppRouter() {
           <Route path="/turno/:docId" component={Turno} />
 
           {/* Rutas Privadas (Protegidas) */}
+          <Route path="/reservar-turno">
+            <RutaProtegida><ReservarTurno /></RutaProtegida>
+          </Route>
           <Route path="/profile">
             <RutaProtegida><MyProfile /></RutaProtegida>
           </Route>

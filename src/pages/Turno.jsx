@@ -2,7 +2,7 @@ import React, { useContext, useEffect, useState } from 'react';
 import { useParams, useLocation } from 'wouter';
 import { AppContext } from '../context/AppContext';
 import { assets } from '../assets/assets';
-import api from "../services/api"; // Usamos la instancia centralizada de Axios
+import api from "../services/api"; 
 
 const Turno = () => {
   const { docId } = useParams();
@@ -19,21 +19,18 @@ const Turno = () => {
   const [loading, setLoading] = useState(true);
   const [mensaje, setMensaje] = useState({ tipo: '', texto: '' });
 
-  // 1. Cargar info del profesional
   useEffect(() => {
-    if (doctors.length > 0) {
+    if (doctors && doctors.length > 0) {
       const doc = doctors.find(d => d.id === parseInt(docId));
       setDocInfo(doc);
     }
   }, [doctors, docId]);
 
-  // 2. Traer turnos existentes del backend para calcular la disponibilidad
   useEffect(() => {
     const cargarTurnosOcupados = async () => {
       if (!docInfo) return;
       try {
         setLoading(true);
-        // Llamada a tu endpoint de turnos filtrando por este profesional
         const respuesta = await api.get(`/turno?profesionalId=${docInfo.id}`);
         setTurnosOcupados(respuesta.data || []);
       } catch (error) {
@@ -46,7 +43,6 @@ const Turno = () => {
     cargarTurnosOcupados();
   }, [docInfo]);
 
-  // 3. Generar la grilla de horarios aplicando las reglas de negocio
   const calcularSlotsDisponibles = () => {
     if (!docInfo) return;
 
@@ -58,19 +54,15 @@ const Turno = () => {
       fechaActual.setDate(hoy.getDate() + i);
       
       const numeroDia = fechaActual.getDay();
-
-      // Regla: Los domingos el consultorio permanece cerrado
       if (numeroDia === 0) continue; 
 
-      // Regla: Lunes a Viernes de 8 a 18 hs. Sábados de 8 a 12 hs.
       let horaInicio = 8;
       let horaFin = (numeroDia === 6) ? 12 : 18;
 
       fechaActual.setHours(horaInicio, 0, 0, 0);
 
-      // Si es el día de hoy, el primer turno disponible arranca después de la hora actual
       if (hoy.getDate() === fechaActual.getDate()) {
-        if (hoy.getHours() >= horaFin) continue; // Si ya pasó la hora de cierre, saltar
+        if (hoy.getHours() >= horaFin) continue; 
         if (hoy.getHours() >= horaInicio) {
           fechaActual.setHours(hoy.getHours() + 1);
           fechaActual.setMinutes(hoy.getMinutes() > 30 ? 0 : 30);
@@ -78,11 +70,9 @@ const Turno = () => {
       }
 
       let limitesTurnosDelDia = [];
-
       while (fechaActual.getHours() < horaFin) {
         let tiempoFormateado = fechaActual.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
-        
-        // Verificamos si este turno específico ya existe en la lista del backend
+
         const estaOcupado = turnosOcupados.some(turno => {
           const fechaTurno = new Date(turno.fechaHora);
           return fechaTurno.getDate() === fechaActual.getDate() &&
@@ -94,10 +84,9 @@ const Turno = () => {
         limitesTurnosDelDia.push({
           datetime: new Date(fechaActual),
           time: tiempoFormateado,
-          disponible: !estaOcupado // Guardamos el estado de disponibilidad
+          disponible: !estaOcupado 
         });
 
-        // Sumamos los 30 minutos de duración por turno
         fechaActual.setMinutes(fechaActual.getMinutes() + 30);
       }
 
@@ -114,7 +103,6 @@ const Turno = () => {
     }
   }, [docInfo, turnosOcupados, loading]);
 
-  // 4. Pasar a la página de Confirmación (Reserve Appointment en Español)
   const continuarAConfirmacion = () => {
     if (!token) {
       setMensaje({ tipo: 'error', texto: 'Debes iniciar sesión para agendar un turno.' });
@@ -126,7 +114,6 @@ const Turno = () => {
       return;
     }
 
-    // Buscamos el slot seleccionado
     const slotSeleccionado = docSlots[slotIndex].find(s => s.time === slotTime);
     
     if (!slotSeleccionado || !slotSeleccionado.disponible) {
@@ -134,14 +121,12 @@ const Turno = () => {
       return;
     }
 
-    // Guardamos la información en el SessionStorage para levantarla en la siguiente vista
     sessionStorage.setItem('reserva_pendiente', JSON.stringify({
       profesional: docInfo,
       fechaHora: slotSeleccionado.datetime.toISOString(),
       horaTexto: slotTime
     }));
 
-    // Redirección limpia hacia la página de confirmación en español
     setLocation('/reservar-turno');
   };
 
@@ -156,7 +141,6 @@ const Turno = () => {
 
   return docInfo && (
     <div className="container mx-auto p-4 max-w-5xl">
-      {/* Tarjeta del Profesional */}
       <div className='flex flex-col sm:flex-row gap-4 bg-white p-6 rounded-lg shadow-sm border border-gray-100'>
         <div>
           <img className='bg-sky-50 w-full sm:max-w-72 rounded-lg object-cover' src={docInfo.imagen || docInfo.image || assets.doc_placeholder} alt={docInfo.nombre} />
@@ -185,11 +169,9 @@ const Turno = () => {
         </div>
       </div>
 
-      {/* Selector de turnos */}
       <div className='mt-8 font-medium text-gray-700 bg-white p-6 rounded-lg shadow-sm border border-gray-100'>
         <p className="text-lg font-semibold text-gray-800">Turnos Disponibles</p>
         
-        {/* Grilla de Días */}
         <div className='flex gap-3 items-center w-full overflow-x-auto mt-4 pb-2 scrollbar-thin'>
           {docSlots.length > 0 && docSlots.map((item, index) => {
             if (!item[0]) return null;
@@ -206,7 +188,6 @@ const Turno = () => {
           })}
         </div>
 
-        {/* Grilla de Horarios del Día Seleccionado */}
         <div className='flex flex-wrap gap-3 w-full mt-5 pb-2'>
           {docSlots.length > 0 && docSlots[slotIndex].map((item, index) => (
             <button 
@@ -232,7 +213,6 @@ const Turno = () => {
           </div>
         )}
 
-        {/* Sección de acción */}
         <div className="mt-6 pt-4 border-t border-gray-100 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
           {!token ? (
             <div className="bg-amber-50 border-l-4 border-amber-500 p-3 text-amber-800 text-sm rounded flex-1">
