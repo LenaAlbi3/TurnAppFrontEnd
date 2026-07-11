@@ -1,133 +1,98 @@
-import React, { useState, useEffect } from 'react';
-import axios from 'axios';
+import { useState, useEffect } from 'react';
+import { useLocation } from 'wouter';
+import api from '../services/api';// Importamos la instancia configurada
 
 const TurnosPacientePage = () => {
   const [turnos, setTurnos] = useState([]);
   const [loading, setLoading] = useState(true);
-  const [error, setError] = useState(null);
+  const [, setLocation] = useLocation();
 
-  const API_BASE_URL = 'https://localhost:7298/api/turno'; 
-  
-  const token = localStorage.getItem('token');
-  const authHeaders = { 'Authorization': `Bearer ${token}` };
-
-  useEffect(() => {
-    const fetchMisTurnos = async () => {
-      try {
-        const response = await axios.get(API_BASE_URL, {
-          headers: authHeaders
-        });
-        
+  const fetchMisTurnos = async () => {
+    try {
+      const response = await api.get('/turnos'); 
+      if (Array.isArray(response.data)) {
         setTurnos(response.data);
-      } catch (err) {
-        console.error("Error al obtener los turnos del paciente:", err);
-        setError("No se pudo cargar tu listado de turnos. Intenta nuevamente.");
-      } finally {
-        setLoading(false);
-      }
-    };
+    } else if (response.data && typeof response.data === 'object') {
+        // A veces el backend devuelve { "turnos": [...] }
+        // Ajusta "turnos" según el nombre de la propiedad en tu JSON de respuesta
+        setTurnos(response.data.turnos || []); 
+    } else {
+        setTurnos([]);
+    }
+  } catch (err) {
+    console.error("Error al cargar turnos:", err);
+    setTurnos([]); // Por seguridad si falla
+  } finally {
+    setLoading(false);
+  }
+};
 
-    fetchMisTurnos();
+  useEffect(() => { 
+    fetchMisTurnos(); 
   }, []);
 
-  const formatearFechaHora = (fechaHoraString) => {
-    const fechaObj = new Date(fechaHoraString);
+  const handleCancelar = async (id) => {
+    if (!window.confirm("¿Seguro que deseas cancelar este turno?")) return;
     
-    const dia = fechaObj.toLocaleDateString('es-AR', {
-      day: '2-digit',
-      month: '2-digit',
-      year: 'numeric'
-    });
-
-    const horario = fechaObj.toLocaleTimeString('es-AR', {
-      hour: '2-digit',
-      minute: '2-digit'
-    });
-
-    return { dia, horario };
+    try {
+      // Usamos la instancia api para la petición DELETE
+      await api.delete(`/turnos/${id}`);
+      setTurnos(prev => prev.filter(t => t.id !== id));
+    } catch (err) { 
+      alert("Error al cancelar."); 
+    }
   };
 
-  if (loading) {
-    return (
-      <div className="flex justify-center items-center h-screen">
-        <p className="text-gray-600 text-lg animate-pulse">Cargando tus turnos...</p>
-      </div>
-    );
-  }
+  const handleReprogramar = (turno) => {
+    localStorage.setItem("turnoAReprogramar", turno.id);
+    setLocation(`/turno/${turno.profesionalId}`); 
+  };
+
+  if (loading) return <div className="p-10 text-center"><span className="loading loading-spinner"></span></div>;
 
   return (
     <div className="container mx-auto p-6 max-w-6xl">
-      <header className="mb-6">
-        <h1 className="text-3xl font-bold text-gray-800">Mis turnos</h1>
-        <p className="text-gray-500">Historial y próximos turnos agendados con tus profesionales</p>
-      </header>
-
-      {error && (
-        <div className="bg-red-50 border-l-4 border-red-500 p-4 mb-6 text-red-700 rounded shadow-sm">
-          {error}
-        </div>
-      )}
-
-      {turnos.length === 0 ? (
-        <div className="bg-white shadow rounded-lg p-6 text-center text-gray-500">
-          Aún no tienes turnos reservados en el sistema.
-        </div>
-      ) : (
-        <div className="overflow-x-auto bg-white shadow rounded-lg">
-          <table className="min-w-full table-auto border-collapse">
-            <thead className="bg-gray-100 border-b border-gray-200">
+      <h1 className="text-3xl font-bold mb-6">Mis Turnos</h1>
+      
+      <div className="overflow-x-auto bg-base-100 shadow rounded-box border border-base-200">
+        <table className="table table-zebra">
+          <thead>
+            <tr>
+              <th>Profesional</th>
+              <th>Especialidad</th>
+              <th>Fecha y Hora</th>
+              <th>Acciones</th>
+            </tr>
+          </thead>
+          <tbody>
+            {turnos.length > 0 ? (
+              turnos.map((turno) => (
+                <tr key={turno.id}>
+                  <td>{turno.profesionalNombreCompleto}</td>
+                  <td>{turno.profesionalEspecialidad}</td>
+                  <td>{new Date(turno.fechaHora).toLocaleString()}</td>
+                  <td className="flex gap-2">
+                    <button 
+                      onClick={() => handleCancelar(turno.id)} 
+                      className="btn btn-sm btn-outline btn-error"
+                    >Cancelar</button>
+                    <button 
+                      onClick={() => handleReprogramar(turno)} 
+                      className="btn btn-sm btn-primary"
+                    >Reprogramar</button>
+                  </td>
+                </tr>
+              ))
+            ) : (
               <tr>
-                <th className="px-6 py-4 text-left text-xs font-semibold text-gray-600 uppercase tracking-wider">
-                  Profesional
-                </th>
-                <th className="px-6 py-4 text-left text-xs font-semibold text-gray-600 uppercase tracking-wider">
-                  Especialidad
-                </th>
-                <th className="px-6 py-4 text-left text-xs font-semibold text-gray-600 uppercase tracking-wider">
-                  Día
-                </th>
-                <th className="px-6 py-4 text-left text-xs font-semibold text-gray-600 uppercase tracking-wider">
-                  Horario
-                </th>
-                <th className="px-6 py-4 text-left text-xs font-semibold text-gray-600 uppercase tracking-wider">
-                  Estado
-                </th>
+                <td colSpan="4" className="text-center py-10 text-gray-500">
+                  Todavía no tienes turnos registrados
+                </td>
               </tr>
-            </thead>
-            <tbody className="divide-y divide-gray-200">
-              {turnos.map((turno) => {
-                const { dia, horario } = formatearFechaHora(turno.fechaHora);
-                
-                return (
-                  <tr key={turno.id} className="hover:bg-gray-50 transition-colors">
-                    <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">
-                      {turno.profesionalNombreCompleto}
-                    </td>
-                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
-                      {turno.profesionalEspecialidad || <span className="text-gray-400 italic">-</span>}
-                    </td>
-                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-700">
-                      {dia}
-                    </td>
-                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-700 font-semibold">
-                      {horario} hs
-                    </td>
-                    <td className="px-6 py-4 whitespace-nowrap text-sm">
-                      <span className={`px-2 inline-flex text-xs leading-5 font-semibold rounded-full ${
-                        turno.estadoTurno === 'A' || turno.estadoTurno === 'Asignado'
-                          ? 'bg-blue-100 text-blue-800' 
-                          : 'bg-gray-100 text-gray-800'
-                      }`}>
-                        {turno.estadoTurno}
-                      </span>
-                    </td>
-                  </tr>
-                );
-              })}
-            </tbody>
-          </table>
-        </div>
-      )}
+            )}
+          </tbody>
+        </table>
+      </div>
     </div>
   );
 };

@@ -1,84 +1,88 @@
+import { lazy, Suspense } from "react";
 import { Route, Switch, Redirect } from "wouter";
+import { useAuthStore } from "./store/authStore"; // Asegura que este import exista
+
+// Importaciones estáticas para carga inmediata
 import Navbar from './components/Navbar';
+import Footer from './components/Footer';
 import Home from './pages/Home';
-import Doctores from './pages/Doctores';
-import Turno from './pages/Turno'; 
-import Login from './pages/Login';
+import Profesionales from './pages/Profesionales';
+import SobreNosotros from "./pages/SobreNosotros";
+import Contacto from "./pages/Contacto";
 import Register from './pages/Register';
-import Contact from "./pages/Contact";
+import RegistroPaciente from "./pages/registerPatient";
+import Login from './pages/Login';
 import MyProfile from "./pages/MyProfile";
+import Turno from './pages/Turno'; 
 import TurnosDoctor from './pages/TurnosDoctor';     
 import TurnosPaciente from './pages/TurnosPaciente'; 
 import Page404 from "./pages/page-404";
-import Footer from "./components/Footer";
 
+// Carga diferida de páginas pesadas o administrativas
 const AdminPanel = lazy(() => import("./pages/AdminPanel"));
-// Wrapper para proteger rutas privadas
+
+// --- WRAPPERS DE SEGURIDAD (Optimizados) ---
 const RutaProtegida = ({ children }) => {
-  const isAuthenticated = localStorage.getItem('token') !== null;
+  const isAuthenticated = useAuthStore((state) => state.isAuthenticated);
   return isAuthenticated ? children : <Redirect to="/login" replace />;
 };
 
 const RutaAdmin = ({ children }) => {
-  const isAuthenticated = useAuthStore((state) => state.isAuthenticated);
-  const hasRole = useAuthStore((state) => state.hasRole);
-
-  if (!isAuthenticated) {
-    return <Redirect to="/login" replace />;
-  }
-
-  if (!hasRole("Admin")) {
-    return <Redirect to="/" replace />;
-  }
-
-  return children;
+  const { isAuthenticated, hasRole } = useAuthStore();
+  if (!isAuthenticated) return <Redirect to="/login" replace />;
+  return hasRole("Admin") ? children : <Redirect to="/" replace />;
 };
+
+// --- COMPONENTE LOADING PARA SUSPENSE ---
+const LoadingFallback = () => (
+  <div className="flex justify-center items-center h-64">
+    <span className="loading loading-spinner loading-lg text-primary"></span>
+  </div>
+);
 
 export default function AppRouter() {
   return (
-    <div className='mx-4 sm:mx-[10%]'>
-        <Navbar />
-        
+    <div className="flex flex-col min-h-screen">
+      <Navbar />
+      
+      <main className="flex-grow mx-4 sm:mx-[10%]">
         <Switch>
-            <Route path="/" component={Home} />
-            <Route path="/login" component={Login} />
-            <Route path="/register" component={Register} />
-            <Route path="/doctores" component={Doctores} />
-            <Route path="/turno/:docId" component={Turno} />
-            <Route path="/contact" component={Contact} />
+          {/* Rutas Públicas */}
+          <Route path="/" component={Home} />
+          <Route path="/profesionales" component={Profesionales} />
+          <Route path="/sobre-nosotros" component={SobreNosotros} />
+          <Route path="/contacto" component={Contacto} />
+          <Route path="/register" component={Register} />
+          <Route path="/register-patient" component={RegistroPaciente} />
+          <Route path="/login" component={Login} />
+          <Route path="/turno/:docId" component={Turno} />
 
-            {/* --- RUTAS PRIVADAS --- */}
-            <Route path="/profile">
-              <RutaProtegida>
-                <MyProfile />
-              </RutaProtegida>
-            </Route>
+          {/* Rutas Privadas (Protegidas) */}
+          <Route path="/profile">
+            <RutaProtegida><MyProfile /></RutaProtegida>
+          </Route>
+          <Route path="/agenda-doctor">
+            <RutaProtegida><TurnosDoctor /></RutaProtegida>
+          </Route>
+          <Route path="/mis-turnos-paciente">
+            <RutaProtegida><TurnosPaciente /></RutaProtegida>
+          </Route>
 
-            <Route path="/admin">
-              <RutaAdmin>
-                <Suspense fallback={<div>Cargando panel de administración...</div>}>
-                  <AdminPanel />
-                </Suspense>
-              </RutaAdmin>
-            </Route>
-
-            <Route path="/agenda-doctor">
-              <RutaProtegida>
-                <TurnosDoctor />
-              </RutaProtegida>
-            </Route>
-
-            <Route path="/mis-turnos-paciente">
-              <RutaProtegida>
-                <TurnosPaciente />
-              </RutaProtegida>
-            </Route>
+          {/* Ruta Administrativa (Lazy) */}
+          <Route path="/admin">
+            <RutaAdmin>
+              <Suspense fallback={<LoadingFallback />}>
+                <AdminPanel />
+              </Suspense>
+            </RutaAdmin>
+          </Route>
             
-            {/* --- RUTA 404 (Siempre al final) --- */}
-            <Route component={Page404} />
+          {/* Ruta 404 (Wildcard) */}
+          <Route component={Page404} />
         </Switch>
-        
-        <Footer />
+      </main>
+      
+      <Footer />
     </div>
   );
 }

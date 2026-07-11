@@ -4,47 +4,25 @@ import axios from "axios";
 export const AppContext = createContext();
 
 const AppContextProvider = (props) => {
-  const API_URLS = {
-    especialidades: 'https://localhost:7298/api/especialidad',
-    profesionales: 'https://localhost:7298/api/profesional' 
-  };
-
-  const [token, setToken] = useState(localStorage.getItem('token') || null);
-  const [usuarioLogueado, setUsuarioLogueado] = useState(() => {
-    const user = localStorage.getItem('usuario');
-    return user ? JSON.parse(user) : null;
-  });
-  
-  const [doctors, setDoctors] = useState([]);
+  const [profesionales, setProfesionales] = useState([]);
   const [especialidades, setEspecialidades] = useState([]);
   const [loadingGlobal, setLoadingGlobal] = useState(true);
 
   useEffect(() => {
-    if (token) {
-      localStorage.setItem('token', token);
-    } else {
-      localStorage.removeItem('token');
-      localStorage.removeItem('usuario');
-    }
-  }, [token]);
-
-  useEffect(() => {
     const cargarDatosEstructura = async () => {
       try {
-        const [resEspecialidades, resProfesionales] = await Promise.all([
-          axios.get(API_URLS.especialidades),
-          axios.get(API_URLS.profesionales)
+        const [resEsp, resProf] = await Promise.all([
+          axios.get('https://localhost:7298/api/especialidades'),
+          axios.get('https://localhost:7298/api/profesionales')
         ]);
-
-        setEspecialidades(resEspecialidades.data);
-        setDoctors(resProfesionales.data);
+        setEspecialidades(resEsp.data);
+        setProfesionales(resProf.data);
       } catch (error) {
-        console.error("Error cargando diccionarios de datos estructurales:", error);
+        console.error("Error cargando datos:", error);
       } finally {
         setLoadingGlobal(false);
       }
     };
-
     cargarDatosEstructura();
   }, []);
 
@@ -53,28 +31,18 @@ const AppContextProvider = (props) => {
     return esp ? esp.nombre : "General";
   };
 
-  const logout = () => {
-    setToken(null);
-    setUsuarioLogueado(null);
-  };
-
   const value = {
-    doctors,
-    setDoctors,
+    profesionales,
+    setProfesionales,
     especialidades,
     obtenerNombreEspecialidad,
-    token,
-    setToken,
-    usuarioLogueado,
-    setUsuarioLogueado,
-    logout,
     loadingGlobal
   };
 
   return (
     <AppContext.Provider value={value}>
       {props.children}
-    </AppContext.Provider>  
+    </AppContext.Provider>
   );
 };
 

@@ -2,71 +2,120 @@ import React, { useContext, useEffect, useState } from 'react';
 import { useParams, useLocation } from 'wouter';
 import { AppContext } from '../context/AppContext';
 import { assets } from '../assets/assets';
-import axios from 'axios';
+import api from "../services/api"; // Usamos la instancia centralizada de Axios
 
 const Turno = () => {
   const { docId } = useParams();
   const [, setLocation] = useLocation();
   const { doctors, token, obtenerNombreEspecialidad } = useContext(AppContext);
   
-  const daysOfWeek = ['DOM', 'LUN', 'MAR', 'MIE', 'JUE', 'VIE', 'SAB'];
+  const diasDeLaSemana = ['DOM', 'LUN', 'MAR', 'MIE', 'JUE', 'VIE', 'SAB'];
 
   const [docInfo, setDocInfo] = useState(null);
   const [docSlots, setDocSlots] = useState([]);
   const [slotIndex, setSlotIndex] = useState(0); 
   const [slotTime, setSlotTime] = useState('');
-  const [bookingLoading, setBookingLoading] = useState(false);
+  const [turnosOcupados, setTurnosOcupados] = useState([]);
+  const [loading, setLoading] = useState(true);
   const [mensaje, setMensaje] = useState({ tipo: '', texto: '' });
 
-  const fetchDocInfo = async () => {
-    const doc = doctors.find(doc => doc.id === parseInt(docId));
-    setDocInfo(doc);
-  };
+  // 1. Cargar info del profesional
+  useEffect(() => {
+    if (doctors.length > 0) {
+      const doc = doctors.find(d => d.id === parseInt(docId));
+      setDocInfo(doc);
+    }
+  }, [doctors, docId]);
 
-  const getAvailableSlots = async () => {
-    setDocSlots([]);
-    let today = new Date();
+  // 2. Traer turnos existentes del backend para calcular la disponibilidad
+  useEffect(() => {
+    const cargarTurnosOcupados = async () => {
+      if (!docInfo) return;
+      try {
+        setLoading(true);
+        // Llamada a tu endpoint de turnos filtrando por este profesional
+        const respuesta = await api.get(`/turno?profesionalId=${docInfo.id}`);
+        setTurnosOcupados(respuesta.data || []);
+      } catch (error) {
+        console.error("Error al traer turnos del backend:", error);
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    cargarTurnosOcupados();
+  }, [docInfo]);
+
+  // 3. Generar la grilla de horarios aplicando las reglas de negocio
+  const calcularSlotsDisponibles = () => {
+    if (!docInfo) return;
+
+    let hoy = new Date();
     let masterSlots = [];
 
     for (let i = 0; i < 7; i++) {
-      let currentDate = new Date(today);
-      currentDate.setDate(today.getDate() + i);
+      let fechaActual = new Date(hoy);
+      fechaActual.setDate(hoy.getDate() + i);
+      
+      const numeroDia = fechaActual.getDay();
 
-      let endTime = new Date(today);
-      endTime.setDate(today.getDate() + i);
-      endTime.setHours(21, 0, 0, 0);
+      // Regla: Los domingos el consultorio permanece cerrado
+      if (numeroDia === 0) continue; 
 
-      if (today.getDate() === currentDate.getDate()) {
-        currentDate.setHours(currentDate.getHours() > 10 ? currentDate.getHours() + 1 : 10);
-        currentDate.setMinutes(currentDate.getMinutes() > 30 ? 30 : 0);
-      } else {
-        currentDate.setHours(10);
-        currentDate.setMinutes(0);
+      // Regla: Lunes a Viernes de 8 a 18 hs. Sábados de 8 a 12 hs.
+      let horaInicio = 8;
+      let horaFin = (numeroDia === 6) ? 12 : 18;
+
+      fechaActual.setHours(horaInicio, 0, 0, 0);
+
+      // Si es el día de hoy, el primer turno disponible arranca después de la hora actual
+      if (hoy.getDate() === fechaActual.getDate()) {
+        if (hoy.getHours() >= horaFin) continue; // Si ya pasó la hora de cierre, saltar
+        if (hoy.getHours() >= horaInicio) {
+          fechaActual.setHours(hoy.getHours() + 1);
+          fechaActual.setMinutes(hoy.getMinutes() > 30 ? 0 : 30);
+        }
       }
 
-      let timeSlots = [];
-      while (currentDate < endTime) {
-        let formattedTime = currentDate.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
-        timeSlots.push({
-          datetime: new Date(currentDate),
-          time: formattedTime
+      let limitesTurnosDelDia = [];
+
+      while (fechaActual.getHours() < horaFin) {
+        let tiempoFormateado = fechaActual.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+        
+        // Verificamos si este turno específico ya existe en la lista del backend
+        const estaOcupado = turnosOcupados.some(turno => {
+          const fechaTurno = new Date(turno.fechaHora);
+          return fechaTurno.getDate() === fechaActual.getDate() &&
+                 fechaTurno.getMonth() === fechaActual.getMonth() &&
+                 fechaTurno.getHours() === fechaActual.getHours() &&
+                 fechaTurno.getMinutes() === fechaActual.getMinutes();
         });
-        currentDate.setMinutes(currentDate.getMinutes() + 30);
+
+        limitesTurnosDelDia.push({
+          datetime: new Date(fechaActual),
+          time: tiempoFormateado,
+          disponible: !estaOcupado // Guardamos el estado de disponibilidad
+        });
+
+        // Sumamos los 30 minutos de duración por turno
+        fechaActual.setMinutes(fechaActual.getMinutes() + 30);
       }
-      masterSlots.push(timeSlots);
+
+      if (limitesTurnosDelDia.length > 0) {
+        masterSlots.push(limitesTurnosDelDia);
+      }
     }
     setDocSlots(masterSlots);
   };
 
   useEffect(() => {
-    if (doctors.length > 0) fetchDocInfo();
-  }, [doctors, docId]);
+    if (docInfo && !loading) {
+      calcularSlotsDisponibles();
+    }
+  }, [docInfo, turnosOcupados, loading]);
 
-  useEffect(() => {
-    if (docInfo) getAvailableSlots();
-  }, [docInfo]);
-
-  const reservarTurno = async () => {
+  // 4. Pasar a la página de Confirmación (Reserve Appointment en Español)
+  const continuarAConfirmacion = () => {
     if (!token) {
       setMensaje({ tipo: 'error', texto: 'Debes iniciar sesión para agendar un turno.' });
       return;
@@ -77,46 +126,40 @@ const Turno = () => {
       return;
     }
 
-    try {
-      setBookingLoading(true);
-      setMensaje({ tipo: '', texto: '' });
-
-      const fechaSeleccionada = new Date(docSlots[slotIndex][0].datetime);
-      const [horas, minutos] = slotTime.split(':');
-      fechaSeleccionada.setHours(parseInt(horas), parseInt(minutos), 0, 0);
-
-      const payload = {
-        profesionalId: docInfo.id,
-        fechaHora: fechaSeleccionada.toISOString(), 
-        estadoTurno: "Asignado" 
-      };
-
-      await axios.post('https://localhost:7298/api/turno', payload, {
-        headers: { 'Authorization': `Bearer ${token}` }
-      });
-
-      setMensaje({ tipo: 'success', texto: '¡Turno reservado con éxito! Redirigiendo...' });
-      
-      setTimeout(() => {
-        setLocation('/mis-turnos');
-      }, 2500);
-
-    } catch (error) {
-      console.error("Error al reservar el turno:", error);
-      setMensaje({ 
-        tipo: 'error', 
-        texto: error.response?.data?.message || 'Error en el servidor al procesar la reserva.' 
-      });
-    } finally {
-      setBookingLoading(false);
+    // Buscamos el slot seleccionado
+    const slotSeleccionado = docSlots[slotIndex].find(s => s.time === slotTime);
+    
+    if (!slotSeleccionado || !slotSeleccionado.disponible) {
+      setMensaje({ tipo: 'error', texto: 'El horario seleccionado ya no está disponible.' });
+      return;
     }
+
+    // Guardamos la información en el SessionStorage para levantarla en la siguiente vista
+    sessionStorage.setItem('reserva_pendiente', JSON.stringify({
+      profesional: docInfo,
+      fechaHora: slotSeleccionado.datetime.toISOString(),
+      horaTexto: slotTime
+    }));
+
+    // Redirección limpia hacia la página de confirmación en español
+    setLocation('/reservar-turno');
   };
+
+  if (loading) {
+    return (
+      <div className="flex flex-col items-center justify-center min-h-[400px]">
+        <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-sky-600"></div>
+        <p className="text-gray-400 mt-4 text-sm">Consultando agenda del profesional...</p>
+      </div>
+    );
+  }
 
   return docInfo && (
     <div className="container mx-auto p-4 max-w-5xl">
+      {/* Tarjeta del Profesional */}
       <div className='flex flex-col sm:flex-row gap-4 bg-white p-6 rounded-lg shadow-sm border border-gray-100'>
         <div>
-          <img className='bg-sky-50 w-full sm:max-w-72 rounded-lg object-cover' src={docInfo.image || assets.doc_placeholder} alt={docInfo.nombre} />
+          <img className='bg-sky-50 w-full sm:max-w-72 rounded-lg object-cover' src={docInfo.imagen || docInfo.image || assets.doc_placeholder} alt={docInfo.nombre} />
         </div>
 
         <div className='flex-1 rounded-lg p-2 bg-white mt-0'>
@@ -128,7 +171,7 @@ const Turno = () => {
             <p className="bg-sky-50 text-sky-700 px-3 py-1 rounded-full text-xs">
               {docInfo.especialidadesIds && docInfo.especialidadesIds.length > 0 
                 ? docInfo.especialidadesIds.map(id => obtenerNombreEspecialidad(id)).join(', ')
-                : 'Médico General'}
+                : 'Profesional General'}
             </p>
           </div>
           <div>
@@ -136,15 +179,17 @@ const Turno = () => {
               Sobre el profesional <img className="w-3.5" src={assets.info_icon} alt="" />
             </p>
             <p className='text-sm text-gray-600 max-w-[700px] mt-1 leading-relaxed'>
-              {docInfo.biografia || docInfo.about || "Profesional de la salud comprometido con la atención integral."}
+              {docInfo.biografia || docInfo.about || "Profesional de la salud comprometido con la atención integral de sus pacientes."}
             </p>
           </div>
         </div>
       </div>
 
+      {/* Selector de turnos */}
       <div className='mt-8 font-medium text-gray-700 bg-white p-6 rounded-lg shadow-sm border border-gray-100'>
-        <p className="text-lg font-semibold text-gray-800">Turnos disponibles</p>
+        <p className="text-lg font-semibold text-gray-800">Turnos Disponibles</p>
         
+        {/* Grilla de Días */}
         <div className='flex gap-3 items-center w-full overflow-x-auto mt-4 pb-2 scrollbar-thin'>
           {docSlots.length > 0 && docSlots.map((item, index) => {
             if (!item[0]) return null;
@@ -154,22 +199,30 @@ const Turno = () => {
                 className={`text-center py-4 min-w-20 rounded-2xl cursor-pointer transition-all duration-200 ${slotIndex === index ? 'bg-sky-600 text-white shadow-md shadow-sky-200' : 'border border-gray-200 hover:bg-gray-50'}`} 
                 key={index}
               >
-                <p className="text-xs uppercase opacity-80">{daysOfWeek[item[0].datetime.getDay()]}</p>
+                <p className="text-xs uppercase opacity-80">{diasDeLaSemana[item[0].datetime.getDay()]}</p>
                 <p className="text-xl font-bold mt-0.5">{item[0].datetime.getDate()}</p>
               </div>
             );
           })}
         </div>
 
-        <div className='flex items-center gap-3 w-full overflow-x-auto mt-5 pb-2'>
+        {/* Grilla de Horarios del Día Seleccionado */}
+        <div className='flex flex-wrap gap-3 w-full mt-5 pb-2'>
           {docSlots.length > 0 && docSlots[slotIndex].map((item, index) => (
-            <p 
-              onClick={() => setSlotTime(item.time)} 
-              className={`text-sm font-medium flex-shrink-0 px-5 py-2.5 rounded-full cursor-pointer transition-colors ${item.time === slotTime ? 'bg-sky-600 text-white' : 'text-gray-600 bg-gray-50 border border-gray-200 hover:bg-gray-100'}`} 
+            <button 
               key={index}
+              disabled={!item.disponible}
+              onClick={() => setSlotTime(item.time)} 
+              className={`text-sm font-medium px-5 py-2.5 rounded-full transition-all ${
+                !item.disponible 
+                  ? 'bg-gray-100 text-gray-300 border border-gray-200 line-through cursor-not-allowed'
+                  : item.time === slotTime 
+                    ? 'bg-sky-600 text-white shadow-sm' 
+                    : 'text-gray-600 bg-gray-50 border border-gray-200 hover:bg-gray-100'
+              }`}
             >
-              {item.time.toLowerCase()} hs
-            </p>
+              {item.time} hs
+            </button>
           ))}
         </div>
 
@@ -179,27 +232,28 @@ const Turno = () => {
           </div>
         )}
 
+        {/* Sección de acción */}
         <div className="mt-6 pt-4 border-t border-gray-100 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
           {!token ? (
             <div className="bg-amber-50 border-l-4 border-amber-500 p-3 text-amber-800 text-sm rounded flex-1">
-              Para reservar un turno, debes <strong>iniciar sesión</strong>.
+              Para continuar con la reserva, debes <strong>iniciar sesión</strong>.
             </div>
           ) : (
             <p className="text-sm text-gray-500">
-              {slotTime ? `Horario seleccionado: ${slotTime} hs.` : 'Selecciona un horario arriba.'}
+              {slotTime ? `Seleccionado: ${slotTime} hs.` : 'Selecciona un horario de la grilla.'}
             </p>
           )}
 
           <button 
-            onClick={reservarTurno}
-            disabled={!token || !slotTime || bookingLoading}
-            className={`text-sm font-semibold px-14 py-3.5 rounded-full transition-all tracking-wide ${
-              !token || !slotTime || bookingLoading
+            onClick={continuarAConfirmacion}
+            disabled={!token || !slotTime}
+            className={`text-sm font-semibold px-12 py-3.5 rounded-full transition-all tracking-wide ${
+              !token || !slotTime
                 ? 'bg-gray-200 text-gray-400 cursor-not-allowed'
-                : 'bg-sky-600 text-white hover:bg-sky-700 shadow-md shadow-sky-100 active:scale-95'
+                : 'bg-sky-600 text-white hover:bg-sky-700 shadow-md active:scale-95'
             }`}
           >
-            {bookingLoading ? 'PROCESANDO...' : 'RESERVAR TURNO'}
+            CONTINUAR A LA RESERVA
           </button>
         </div>
       </div>
